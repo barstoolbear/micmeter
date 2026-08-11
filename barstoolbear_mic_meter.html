@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>BarstoolBear Mic Meter</title>
+<style>
+html,body{margin:0;width:100%;height:100%;background:transparent;overflow:hidden;font-family:Arial,sans-serif}
+.wrap{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+.meter{width:72px;height:420px;display:flex;flex-direction:column-reverse;gap:6px;padding:10px;border-radius:18px;background:rgba(0,0,0,.14)}
+.seg{flex:1;border-radius:6px;opacity:.16;transition:opacity 45ms linear,transform 45ms linear}
+.seg.on{opacity:1;transform:scaleX(1.03)}
+.green{background:#31d158}.yellow{background:#ffd60a}.red{background:#ff453a}
+.hint{position:fixed;bottom:8px;left:50%;transform:translateX(-50%);font-size:12px;color:#fff;background:rgba(0,0,0,.45);padding:5px 9px;border-radius:999px;white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="meter" id="meter"></div></div>
+<div class="hint" id="hint">Click once to allow microphone</div>
+<script>
+const meter=document.getElementById('meter'),hint=document.getElementById('hint');
+const total=18,greens=11,yellows=4,segs=[];
+for(let i=0;i<total;i++){
+  const d=document.createElement('div');
+  d.className='seg '+(i<greens?'green':i<greens+yellows?'yellow':'red');
+  meter.appendChild(d);segs.push(d);
+}
+async function startMic(){
+ try{
+  const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});
+  const ctx=new (window.AudioContext||window.webkitAudioContext)();
+  const source=ctx.createMediaStreamSource(stream),analyser=ctx.createAnalyser();
+  analyser.fftSize=1024;analyser.smoothingTimeConstant=.65;source.connect(analyser);
+  const data=new Uint8Array(analyser.fftSize);
+  function loop(){
+    analyser.getByteTimeDomainData(data);
+    let sum=0;
+    for(let i=0;i<data.length;i++){const v=(data[i]-128)/128;sum+=v*v;}
+    const rms=Math.sqrt(sum/data.length);
+    const level=Math.min(1,rms*8.5);
+    const active=Math.round(level*total);
+    segs.forEach((s,idx)=>s.classList.toggle('on',idx<active));
+    requestAnimationFrame(loop);
+  }
+  hint.style.display='none';loop();
+ }catch(e){hint.textContent='Mic blocked — allow microphone access';}
+}
+document.body.addEventListener('click',startMic,{once:true});
+</script>
+</body>
+</html>
